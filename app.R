@@ -8,43 +8,55 @@
 #
 
 library(shiny)
+library(DBI)
+library(pool)
+library(tibble)
+library(config)
+library(RMariaDB)
+
+# Get the connection details
+db_config <- config::get("dataconnection")
+
+# Set up the pool for effective handling of multiple connections
+pool <- pool::dbPool(
+  drv = RMariaDB::MariaDB(),
+  dbname = db_config$dbname,
+  host = db_config$host,
+  username = db_config$username,
+  password = db_config$password,
+  ssl.key = db_config$ssl.key,
+  ssl.cert = db_config$ssl.cert,
+  ssl.ca = db_config$ssl.ca
+)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
-
     # Application title
-    titlePanel("Old Faithful Geyser Data (Test headline - updated!)"),
+    titlePanel("Test DB submission"),
 
-    # Sidebar with a slider input for number of bins 
-    sidebarLayout(
-        sidebarPanel(
-            sliderInput("bins",
-                        "Number of bins:",
-                        min = 1,
-                        max = 50,
-                        value = 30)
-        ),
-
-        # Show a plot of the generated distribution
-        mainPanel(
-           plotOutput("distPlot")
-        )
+    fluidRow(
+      shiny::textInput("id", label = "Input a random string")
+    ),
+    fluidRow(
+      actionButton("submit", "Submit to DB")
     )
 )
 
 # Define server logic required to draw a histogram
 server <- function(input, output) {
 
-    output$distPlot <- renderPlot({
-        # generate bins based on input$bins from ui.R
-        x    <- faithful[, 2]
-        bins <- seq(min(x), max(x), length.out = input$bins + 1)
-
-        # draw the histogram with the specified number of bins
-        hist(x, breaks = bins, col = 'darkgray', border = 'white',
-             xlab = 'Waiting time to next eruption (in mins)',
-             main = 'Histogram of waiting times')
-    })
+  # Observe event
+  observeEvent(input$submit, {
+    dbWriteTable(
+      conn = pool,
+      name = "test",
+      value = tibble(
+        timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+        id = input$id
+      ),
+      append = TRUE
+    )
+  })
 }
 
 # Run the application 
